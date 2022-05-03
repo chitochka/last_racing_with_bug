@@ -1,0 +1,1176 @@
+<!DOCTYPE html> 
+
+<html>
+<head>
+  <title></title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <link href="myDEv.css" rel="stylesheet" type="text/css" />
+  <link href="forIphone.css" rel="stylesheet" type="text/css" />
+  <script src="uni.js?rr={rndJS}"></script>
+</head> 
+
+<body> 
+
+<div id="main-wrapper">
+  <div id="racer">
+    <div id="sky"> </div>
+    <canvas id="canvas">
+      Sorry, this example cannot be run because your browser does not support the &lt;canvas&gt; element
+    </canvas>
+    <!-- MOBIL -->
+    <div id="mobil-wrap">
+      <div id="screen"> 
+        <div id="scr1"><pre></pre></div>
+        <div id="scr2"><pre></pre></div>
+      </div>   
+      <div id="letters">
+        <div class="row"> 
+          <span class="ltr">Q</span><span class="ltr">W</span><span class="ltr">E</span><span class="ltr">R</span><span class="ltr">T</span><span class="ltr">Z</span><span class="ltr">U</span><span class="ltr">I</span><span class="ltr">O</span><span class="ltr">P</span>
+        </div>
+        <div class="row asdfg"> 
+          <span class="ltr">A</span><span class="ltr">S</span><span class="ltr">D</span><span class="ltr">F</span><span class="ltr">G</span><span class="ltr">H</span><span class="ltr">J</span><span class="ltr">K</span><span class="ltr">L</span>
+        </div>
+        <div class="row zxcvbn">
+          <span class="ltr">Y</span><span class="ltr">X</span><span class="ltr">C</span><span class="ltr">V</span><span class="ltr">B</span><span class="ltr">N</span><span class="ltr">M</span>
+        </div> 
+      </div>    
+      <div id="iSend" class="btn">   Send    </div>    
+      <div id="space" class="btn">  &nbsp;  </div>    
+      <div id="bs" class="btn">     ⌫       </div>    
+      <div id="enter" class="btn">  ⏎       </div>    
+      <span id="devOdpoved"> ... </span>
+    </div>
+
+     <!-- END OF MOBIL -->
+
+    <!--[if IE 9]>
+      <script src="ie9.js"></script>
+    <![endif]-->
+
+    <div id="full-scr"></div>
+    <div id="score-wrap"></div>
+  </div>
+</div>
+
+
+  <!-- dev -->
+  <div id="dev-pomucky">
+      <div id="devbuttons"> 
+        <input type="button" id="devmobil" value="Mobile">
+        <input type="button" id="devstop" value="Stop">
+        <input type="button" id="devnewsms" value="New SMS">
+        <input type="button" id="devkonecHry"  value="Konec Hry">
+        &nbsp; &nbsp; &nbsp;
+        <input type="button" id="devscore"  value="IO score">
+        &nbsp; &nbsp; &nbsp;
+          <span id="smsstatus">SMS STATUS </span>
+      </div>
+      <div id="score-online" >
+        <div>
+          <span> Time</span>
+          <span> Projel</span>
+          <span> SMS</span>
+          <span> MaxTime</span>
+      </div></div>
+
+  </div>
+
+  <script>
+'use strict'
+
+//  kod rozbit na nekolik specialnych blocku ktere jsou oddeleny komentaremi 
+
+//  Game Const - Snejprve  defenujeme promeny, a pokud jsou, tak prepiseme vyhozi hodnoty, ktere nastavime  v attr v funkce tools 
+
+//  Util       - Pouziva se pro funkce matematickych vypoctu a nastaveni Listenera na document  
+
+//  Game       - Hlavni objekt hry. ma stahovach obrazku, nastaveni tlacitek, timer pro branu (zacatek a konec reacni dobu, zapis vysledku v okamzik projeti) a run (hlavni engine hry) 
+
+//  mobil      - Objekt mobil, po inicializace (mobil.init()) vraci objekt mobilu s vlasnoti skyt/zobrazen, funckce na skryti/zobrazeni , pocetprojetych bran bez mobilu, stav smskovani ) a funkce volali nove smsky 
+//               Uvnitr jsou funkce na cteni smsek, porovnani spravnosti odpovedi(pomoci Levenštejnovy vzdálenosti ktera je Util )  
+
+//  update     - Aktualizuje data v hre (kolik segmentu musi projet pri urcite rychlosti, reakce na ztisknuti klaves, aktivace zeleni brany, projeti brany atd)   muze byt zavolana 0, 1  a vic krat (zalezi na fps) 
+
+//  render     - Nejprve vypocitava projekce (komentar VYPOCTY)  
+//               a kresli do kanvasu  (nejprve kresli zem, pak mlhu, pak dalnice+pruhu+bardury , pak mlha, potom billboard , pak branu). 
+//               Nejprve kresli na bufferni kanvas bez DOMu a a poslednim prikazem kopiruje z bufferniho kanvasu na konecny , ktery je v DOM
+
+//  resetroad  - Funkce na sestave dalnice se segmentu , vcetne nastaveni zatacek a vertikální polohy, pak se nastavuje promeny "segmentsDalnice" a "segmentLength". Vzor: addRoad(DElka, DELKA, DELKA ,VERTIKAL_HODNOTA, ZATACKY);
+//               soucet vsech vertikalnych hodnot musi se rovnat 0, jinak bude strmý svah mezi koncem a zacatkem dalnice,  P>S k zatackam to s nevztahuje
+
+//  resetBillBoard - funkce na pridani billBoardu/ spritu na dalnice, zapnout/vypnout billboardy se da promenou withObjects(true/false)  
+
+//  KonecHry   - Funkce ktera se zavola po urcitem postu poslanych sms (cislova promena poslanoSMS), vymaze vsechne brany(vsak ne billboardy), spusti animace, vypocita a zobrazi vysvledky          
+
+//  fullSCreen - Anonimni samospuštící funkce ktera nastavi aktivace/deaktivace plny obrazovku pri kliku na element s #full-scr' 
+
+//  testy      - Funkce ktere jsou potrebne pro testovani 
+
+
+tools()
+function tools(){
+
+    var attr = {
+          images: ["sky.jpg", "brana.png","reklama.png","reklama2.png"], 
+          drawDistance : 1000,          //pocet kreslenych segmentu
+          PRVNI_BRANY : [-500, 35],    // umisteni prvnich simaforu
+          vzdalenostNoveBrany :  1005,  // kazda dalsi se objevi za 1005( 1000 +5 aby snizit vypoctu kvuli drawDistance) segmentu od aktualni projete brany
+          cameraHeight : 900,           // vyska camery
+          fieldOfView   : 85,           // Zorne pole, viz https://cs.wikipedia.org/wiki/Zorn%C3%A9_pole
+          withObjects : true,           // vcetne dalsich obejektu (billboardy)
+          mobilStatusDelay : 2.5,       // mobilni intelekt :)
+    };
+    // vzor {otazka:"seznam otazek pres," , odpovedi : "seznam: odpovedi" }
+    var incomeSMS = [
+      { 
+        otazka :[ "Das si k veceri spagety nebo brambory?" , "coze? Spagety nebo brambory?",  "Napis mi uz konecne spagety, brambory?\n O_o "], 
+        odpoved:['spagety', 'brambory'] },
+      { 
+        otazka :["   SMS 1\nDotaz: 1 ", "   SMS 1\n<b>Dotaz: 2</b>  \n"], 
+        odpoved:['SMS', 'dotaz','ext'] 
+      },
+      { 
+        otazka :["   SMS 2\nDotaz: 1 ", "   SMS 2\n<b>Dotaz: 2</b> \n","   SMS 2\nDOTAZ 3333\n"], 
+        odpoved:["qwerty"] 
+      }
+    ];
+
+    attr.incomeSMS =  incomeSMS;
+
+    init(attr);
+};
+
+
+function init(options){
+  
+  Starter.add( function(){ Game.run() } )
+
+  //=============================================================================
+  // RACING GAME CONSTANTS
+  //=============================================================================
+
+  var images = options.images || ["sky.jpg", "brana.png","reklama.png","reklama2.png"]
+  var PRVNI_BRANY = options.PRVNI_BRANY || [0];
+  var vzdalenostNoveBrany= options.vzdalenostNoveBrany || 500
+//---------------------------------------------------------------------
+  var KEYCODE = {
+      LEFT:  37,  /*A:     65,*/
+      UP:    38,  /*D:     68,*/
+      RIGHT: 39,  /*S:     83,*/
+      DOWN:  40,  W:     87,  E:69,
+      A: 65, S: 83, D: 68, F: 70, G: 71,
+      1: 49, 2: 50, 3: 51, 4: 52, 5: 53
+  };
+  var keys= [
+      { keys: [KEYCODE[1],  KEYCODE.A], mode: 'down',   action: function() { activeKey = -.8; } },
+      { keys: [KEYCODE[2],  KEYCODE.S], mode: 'down',   action: function() { activeKey = -.4; } },
+      { keys: [KEYCODE[3],  KEYCODE.D], mode: 'down',   action: function() { activeKey = 0; } },
+      { keys: [KEYCODE[4],  KEYCODE.F], mode: 'down',   action: function() { activeKey = .4; } },
+      { keys: [KEYCODE[5],  KEYCODE.G], mode: 'down',   action: function() { activeKey = .8; } },
+      { keys: [KEYCODE[1], KEYCODE[2], KEYCODE[3], KEYCODE[4], KEYCODE[5], KEYCODE.A, KEYCODE.S, KEYCODE.D, KEYCODE.F, KEYCODE.G], mode: 'up',   action: function() { activeKey = null; } }
+  ];
+
+  var COLORS = {
+      SKY:  '#72D7EE',
+      TREE: '#005108',
+      FOG: 'rgba( 20, 60, 110, .9)',  // '#2a4c60',
+      LIGHT:  { road: '#5B6B6B', grass: '#009aca', rumble: '#555', lane: '#ACCCCC'  },
+      DARK:   { road: '#696969', grass: '#026767', rumble: '#BBB'                   },
+   };
+/* Canvas a IMGs */
+  var canvas        = document.createElement('canvas'),    // dinamicky vytvoreny canvas, ktery neni v DOMu, a pouzivase jako buffer v dobe kresneleni
+      canvasOutput  = document.getElementById('canvas'),   // staticky canvas na ktery se jednou za sminek kresli konecny stav z canvaas bufferu
+      ctx           = canvas.getContext('2d'),
+      ctxOutput     = canvasOutput.getContext('2d'),
+      racer         = document.getElementById('racer'),    // div ve kterem se nachazi vsechny elementy hry (canvas, tlacitko fullScreen, mobil, nebe). Ma sirku a vysku v 100%
+      width         = racer.offsetWidth,                   // sirka rodičovskeho elementu , pak stejnu sirku bude mit canvas. 
+      height        = racer.offsetHeight;                  // vyska  rodičovskeho elementu, pak stejnu vysku bude mit canvas. 
+
+  canvasOutput.width  =  canvas.width  = width;
+  canvasOutput.height =  canvas.height = height;
+
+/* DALNICE a Camera */    
+  var segments      = [];                       // segmenty (cela dalnice se sklada z segmentu )
+  var roadWidth     = 2000;                     // sirka dalnice (vcetne vsech pruhu)
+  var segmentLength = 200;                      // delka jedneho klesleneho segmentu
+  var rumbleLength  = 3;                        // pocet segmentu pro kresleni bardury
+  var trackLength   = null;                     // cela dalnice, t.j. 1 kolo.  
+  var lanes         = 5;                        // p[ocet pruhu]
+  var fieldOfView   = options.fieldOfView || 85;                       // uhel pohledu / Zorné pole / viz https://cs.wikipedia.org/wiki/Zorn%C3%A9_pole
+  var cameraHeight  = options.cameraHeight ||600;                      // z height of camera.;from screen (computed)
+  var cameraDepth  = 1 / Math.tan((fieldOfView/2) * Math.PI/180);  // "hloubka kamery" projekce
+
+  var drawDistance  = 1000;                      // pocet kreslenych segmentu , ma primi vztah k objemu pameti a poctu vypoctu
+  var fogDensity    = 500;                       // exponential mlhy, mlha se pouziva pro skryti defektu "" na nejdalsich segmentech
+  var playerX       = 0;                         // horizontalni pozice na dalnice. Prava hranice dalnice ma -1 , leva +1 , uprostred 0;
+  // var playerZ       = (cameraHeight * cameraDepth);
+
+/* Rizeni */
+  var position      = 0;                         // aktualni pozice na dalnice (osa Z)
+  var speed         = 100*0;                     // current speed
+  var maxSpeed      = 10000                      // maximalni rychlost, 
+  var activeKey      = null                      // zapisuje urcita hodnota podle stisknute klavise (v nasem pripade horizontalni orientace playerX )
+  var segmentsDalnice   = null                   // celkovy pocet segmentu z kterech  se slkada dalnice
+  var segZa2sek         = (100*100 * 0.0122)>>0  // pocet segmentu, ktere projede pri rychlost 10000 za 2.5 sekundy
+  // var skyOffset = 50;  // ?                   // Offset pro posunuti neba/ pozadi
+
+  var buffer= [];                                // buffer/rejstrik s indexy segmentu na kterech jsou brany, t.j. segments.index , kde segments.brana != undefined
+  var bufferObjects= [];                         // buffer/rejstrik s indexy segmentu na kterech jsou sprity, t.j. segments.index , kde segments.sprites != undefined
+
+  var withObjects = options.withObjects || false;// Sobrazovat ve hre dalsi objekty (billboeardy)
+  var mobilStatusDelay = options.mobilStatusDelay || 2.5;    // mobilni inteligentněji posuzovani 
+  var incomeSMS = options.incomeSMS || [{ 
+      otazka :["   SMS 1\nDotaz: 1 ", "   SMS 2\n<b>Dotaz: 2</b> \n","   SMS 2\nDOTAZ 3333\n"], odpoved:["qwerty"] 
+  }];
+
+  //=========================================================================
+  // Math-pomocky
+   
+  var Util = {
+    addListener:      function(ele, type, fn, capture) { element(ele).addEventListener(type, fn, capture);    },
+    timestamp:        function()                  { return new Date().getTime();                                    },
+    toInt:            function(obj, def)          { if (obj !== null) { var x = parseInt(obj, 10); if (!isNaN(x)) return x; } return Util.toInt(def, 0); },
+    toFloat:          function(obj, def)          { if (obj !== null) { var x = parseFloat(obj);   if (!isNaN(x)) return x; } return Util.toFloat(def, 0.0); },
+    percentRemaining: function(n, total)          { return (n%total)/total;                                         },
+    interpolate:      function(a,b,percent)       { return a + (b-a)*percent                                        },
+    easeIn:           function(a,b,percent)       { return a + (b-a)*Math.pow(percent,2);                           },
+    // easeOut:          function(a,b,percent)       { return a + (b-a)*(1-Math.pow(1-percent,2));                     },
+    easeInOut:        function(a,b,percent)       { return a + (b-a)*((-Math.cos(percent*Math.PI)/2) + 0.5);        },
+    exponentialFog:   function(distance, density) { return 1 / (Math.pow(Math.E, (distance * distance * density))); },
+    increase:  function(start, increment, max) { var result = start + increment;
+      while (result >= max)
+        result -= max;
+      while (result < 0)
+        result += max;
+      return result;
+    },
+    rasstoyanieLevenstejna: function (s1, s2, costs) {
+      function preklep(s1,s2){
+          for (var i = 0; i < l1; i++) {
+            if (s1[i] === s2[i] ) continue;
+            if  ((s1[i]===s2[i+1])  && ( s1[i+1]===s2[i]) ) { 
+              if  ((s1.substring(0,i)===s2.substring(0,i)) && (s1.substring(i+2)===s2.substring(i+2))    ) {return true}
+            };
+          };
+          return false;
+      };
+      var i, j, l1, l2, flip, ch, chl, ii, ii2, cost, cutHalf, l1 = s1.length, l2 = s2.length;
+      s1 = s1.toLocaleLowerCase(); s2 = s2.toLocaleLowerCase();
+
+      costs = costs || {};
+      var cr = costs.replace || 1;
+      var cri = costs.replaceCase || costs.replace || 1;
+      var ci = costs.insert || 1;
+      var cd = costs.remove || 1;
+      cutHalf = flip = Math.max(l1, l2);
+      var minCost = Math.min(cd, ci, cr);
+      var minD = Math.max(minCost, (l1 - l2) * cd);
+      var minI = Math.max(minCost, (l2 - l1) * ci);
+      var buf = new Array((cutHalf * 2) - 1);
+
+      for (i = 0; i <= l2; ++i) buf[i] = i * minD;
+      for (i = 0; i < l1; ++i, flip = cutHalf - flip) {
+        ch = s1[i];
+        chl = ch.toLowerCase();
+        buf[flip] = (i + 1) * minI;
+        ii = flip;
+        ii2 = cutHalf - flip;
+        for (j = 0; j < l2; ++j, ++ii, ++ii2) {
+          cost = (ch === s2[j] ? 0 : (chl === s2[j].toLowerCase()) ? cri : cr);
+          buf[ii + 1] = Math.min(buf[ii2 + 1] + cd, buf[ii] + ci, buf[ii2] + cost);
+        };
+      };
+      var rozdil = buf[l2 + cutHalf - flip];
+      if (rozdil > 2) return false
+      else if (rozdil == 2) return preklep(s1,s2)
+      else return true;
+    }  
+  };
+
+
+  //=========================================================================
+  //                                G A M E 
+  //=========================================================================
+
+  var Game = function(){
+    function pridejBranu (segIndex){
+      if ( segIndex  instanceof Array ) {
+        for (var i = 0; i < segIndex.length; i++) pridejBranu(segIndex[i]);
+        return;
+      };
+      var index =  ( segIndex + vzdalenostNoveBrany)  % segmentsDalnice;
+      segments[index].brana = { source: 'brana', offset: 0 }; 
+      buffer.push(index);
+    };
+    return {  
+      run: function(options) {
+        Game.loadImages(images, ready);
+          //---------------------------------------------------------------------------
+        function ready(images) {
+          Game.loadImages = function() {
+            var name, arrImg = {};
+            var cashImg = function(img){
+              var canvas = document.createElement('canvas');
+              var ctx    = canvas.getContext('2d');
+              var width  = canvas.width  = img.width;
+              var height = canvas.height = img.height; 
+              ctx.drawImage(img,0,0,width,height);
+              return canvas;
+            }
+            for (var i = 0; i < images.length; i++) {
+              name = images[i].alt.slice(0, -4).toLowerCase();
+              arrImg[name] = cashImg(images[i]);
+            };
+            return arrImg; 
+          }();
+          //---------------------------------------------------------------------------
+          pridejBranu(PRVNI_BRANY)
+          Game.mobil = mobil.init(incomeSMS, mobilStatusDelay);
+          Game.setKeyListener(keys);
+       
+          var step   =  1/60 , // 1/60fps  options.step,     
+              last   = 0,
+              dt     = 0, // Delta-Time
+              gdt    = 0; // Global Delta-time
+              update = update();
+              render = render();
+              speed = 6500
+          //---------------------------------------------------------------------------
+          var frame = function(now) {
+            dt  = Math.min(1, ((now- last)>>0 )/1000) ; // vzdy maximalne 1 sek
+            last = now
+            gdt = gdt + dt;   
+            while (gdt > step) {   
+              gdt = gdt - step;
+              update(step);
+            }
+            render();
+            requestAnimationFrame(frame, canvas);
+          }
+          //---------------------------------------------------------------------------
+          frame(); 
+        }//  ready
+      }, // run
+
+      //---------------------------------------------------------------------------
+
+      loadImages: function(names, callback) { // load multiple images and callback when ALL images have loaded
+        var result = [];
+        var count  = names.length;
+        var onload = function() {
+          if (--count == 0) {
+            resetRoad();
+            if (withObjects)resetBillBoard();
+            callback(result);    
+          }
+        };
+        for(var n = 0 ; n < names.length ; n++) {
+          var name = names[n];
+          result[n] = document.createElement('img');
+          Util.addListener(result[n], 'load', onload);
+          result[n].src = "images/" + name ;
+          result[n].alt = name;
+        };
+      },
+
+      //---------------------------------------------------------------------------
+
+      setKeyListener: function(keys) {
+        var onkey = function(keyCode, mode) {
+          var n, k;
+          for(n = 0 ; n < keys.length ; n++) {
+            k = keys[n];
+            k.mode = k.mode || 'up';
+            if ((k.key == keyCode) || (k.keys && (k.keys.indexOf(keyCode) >= 0))) {
+              if (k.mode == mode) {
+                k.action.call();
+                return true;
+              }
+            }
+          }
+        };
+        Util.addListener(document, 'keydown', function(ev) { onkey(ev.keyCode, 'down')? ev.preventDefault(): null;  } );
+        Util.addListener(document, 'keyup',   function(ev) { onkey(ev.keyCode, 'up')?   ev.preventDefault(): null;  } );
+      },
+
+    //---------------------------------------------------------------------------
+
+      timer : (function(){
+        var brana ,score = [], segment,
+            lastBrana, pocetBran=0;
+        var convert = function(x){ return Math.round((.8 + x)/.4) };
+        return {
+          //---------------------------------------------------------------------------
+          start : function(nejSegmBrany, zataci, pruh){
+            segment = nejSegmBrany;
+            brana = nejSegmBrany.brana
+            var actualPruh = convert(playerX);
+            var volnePruhy = [];
+            for (var i=0; i<lanes; i++) {
+              if (lastBrana === i) continue;
+              if ((zataci) && ( convert(pruh)===i )) continue
+              else if (actualPruh === i) continue;
+              volnePruhy.push(i);
+            };
+            brana.gate  = volnePruhy.random();
+            brana.start = Util.timestamp();
+            brana.end = null;
+          },
+          //---------------------------------------------------------------------------
+          end : function(gate){
+            if (brana && (brana.end === null) && (brana.gate === convert(gate) )) {
+              brana.end = (Util.timestamp() - brana.start)/1000;
+            }
+          },
+          //---------------------------------------------------------------------------
+          prejezd : function(playerX, lastPressKey){
+            score.push({
+                time: brana.end || 0,
+                projel  : brana.end ? (brana.gate===convert(playerX))&&(brana.gate===convert(lastPressKey)) : false,
+                smskuje : Game.mobil.smskuje,
+                segm    : segment.index,
+                maxReactTime : ((Util.timestamp() - brana.start)/1000).toFixed(2)
+            });
+              /* pokud posledni 3 brany neSMSkoval, poslat newSMS */
+            var mobil = Game.mobil;
+            if (mobil){
+              !mobil.isHidden? mobil.pocetBran=0  : (++mobil.pocetBran>3)? mobil.newSMS() : null; ;
+            };
+            buffer.shift();
+            delete segment.brana
+            brana = null;
+            pridejBranu(segment.index);
+            if (testy) testy({showScoreOnline:(score[score.length-1])});
+          },
+          score: score
+        }
+      })()
+    //---------------------------------------------------------------------------
+    }
+  }(); // Game
+
+
+
+  var mobil = ( new function(){
+      var mobil  = document.getElementById('mobil-wrap'),
+          parent = mobil.parentNode;;
+      var init   = function(incomeSMS,delay){
+        var lastSMS = null, predchoziSMS = [],
+            poradi = 0, poslanoSMS= 0, pocetOtazek
+        var letters =  document.getElementById('letters'),
+            btns = mobil.getElementsByClassName('btn');
+        var pocet, fragment, table,tr, td, row;
+        var display =document.getElementById('scr1').getElementsByTagName('pre')[0],
+            input  = document.getElementById('scr2').getElementsByTagName('pre')[0];
+
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].onclick =  otherButtons;
+        };
+
+        var changeStatus = function(){
+          var timeOut;
+          return function changeStatus(){
+            thisMobil.smskuje = true;
+            if (timeOut) clearTimeout(timeOut);
+            timeOut = setTimeout(function(){
+              thisMobil.smskuje = false;
+              timeOut = null;
+            }, delay*1000)
+          }
+        }();
+
+        letters.onclick = function(event){
+          var elem = event.target;
+          if (elem.tagName != 'SPAN') return;
+          var letter = elem.innerHTML;    
+          input.innerHTML = input.innerHTML + letter.toLowerCase();
+          scrollScr(input)
+          changeStatus()
+        }; 
+
+        function scrollScr (elem){
+          var scr =  elem.parentElement;
+          scr.scrollTop = scr.scrollHeight - scr.clientHeight;
+        }
+
+        function otherButtons (event){
+          var id = event.currentTarget.id.toLowerCase();
+          switch (id) {
+            case "space" : if (input.innerHTML.substr(-1) !== " ") input.innerHTML += " "; scrollScr(input); break;
+            case "bs"    : input.innerHTML = input.innerHTML.substring(0, input.innerHTML.length-1); break;
+            case "enter" : sendSMS();break;
+            case "isend" : sendSMS();break;
+          }
+          changeStatus()
+        }
+
+        function sendSMS (){
+          if  (input.innerHTML === "") return;
+          thisMobil.toggle();
+          if (jeSpravna(input.innerHTML, lastSMS.odpoved)) {
+            lastSMS = null;  
+            input.innerHTML = "";
+            if (testy)  testy({smsstatus: 'smsstatus.innerHTML = "SMS SPRAVNA"; smsstatus.style.color ="#2f2"'});
+            if (++poslanoSMS > 2) {
+              konecHry();
+            }
+          } else {
+            if (testy)  testy({smsstatus: 'smsstatus.innerHTML = "SMS NENI SPRAVNA, dalsi za 6.5s"; smsstatus.style.color ="#f53"'});
+            setTimeout(thisMobil.newSMS, 6500);
+          } 
+        }
+        function jeSpravna(str1,arr){
+          for (var i = 0; i < arr.length; i++) {
+            if ((arr[i].length) && Util.rasstoyanieLevenstejna(str1, arr[i])) return true;
+          };
+          return false;
+        };
+
+        var readSMS =   function() {
+          if ( lastSMS == null ) {
+            while ((incomeSMS.length == predchoziSMS.length? !(predchoziSMS.length=0) : true)) {
+              lastSMS = incomeSMS.random();
+              if (predchoziSMS.indexOf(lastSMS)+1) continue; 
+              predchoziSMS.push(lastSMS);
+              break;  
+            };
+            devOdpoved.innerHTML =  lastSMS.odpoved.join(' | '); 
+            display.innerHTML = lastSMS.otazka[0];
+            poradi = lastSMS.otazka.indexOf(display.innerHTML);
+            pocetOtazek = lastSMS.otazka.length;
+          } else {
+            if (pocetOtazek <= ++poradi)  poradi = 1;
+            display.innerHTML = lastSMS.otazka[poradi];          
+          }
+        }; 
+
+        var thisMobil = {
+          toggle : function(noShow){
+              this.isHidden = (~mobil.className.indexOf('show'));
+              mobil.className = this.isHidden ? ''  : 'show';
+              this.pocetBran = 0;
+          },
+          newSMS: function(){
+            thisMobil.toggle();
+            readSMS();
+          },
+          smskuje : false,
+          isHidden: true,
+          pocetBran: 0
+        };
+
+        return thisMobil;
+      }; // konec init
+
+      return  {
+        init : init,
+      };
+           
+    }); // end Mobil
+   
+
+
+
+  //=========================================================================
+  //            U P D A T E      -----        U P D A T E
+  //=========================================================================
+
+  function update(){
+    var nejSegmBrany, lastPressKey, lastSegment=-1, 
+        index, zataci = false, zrychleni, pruh = null;
+    //--------------------------------------------------------------------------------
+    function changeLanes(dx){
+        if  (activeKey  !== null) {
+          /* pokud v dobe zataceni, se vyberou jiny pruh, tak prepocitat zrychleni */
+          if (pruh !== null && (pruh !== activeKey)) zataci = false;
+          pruh =  activeKey;
+        };
+        if (!zataci) zrychleni = +Math.abs((playerX - activeKey)/0.4/3).toFixed(2);
+       
+        if (playerX !=  pruh ) {
+          zataci = true;
+          dx = +(dx * (zrychleni)).toFixed(7);
+          playerX =  +(playerX + ((pruh - playerX) > 0 ? dx : 0-dx)).toFixed(3)
+          var rozdil = +(playerX - pruh ).toFixed(4);
+          
+          if ((rozdil >= -0.01) && (rozdil <= 0.01 )) playerX = pruh;
+        } else {
+          zataci = false;
+          zrychleni = 1;
+          pruh = null
+        };
+    }
+    //--------------------------------------------------------------------------------
+    function accelerate(){
+      accelerate = null; return
+      /* nejprve zvetsime rychlost na maximalni, a smazeme func accelerate */
+      if ( speed  < maxSpeed) speed += 40
+      else  accelerate = null;
+    };
+    //=======================  R E T U R N     U P D A T E  ==========================
+
+    return function update(dt) {
+        position = Util.increase(position, dt * speed, trackLength);
+        var baseSegment = findSegment(position);
+
+        var rozdil = baseSegment.index - lastSegment;
+        if (rozdil<0) rozdil = (rozdil + segmentsDalnice) % segmentsDalnice
+        if (rozdil <1) return
+        var i ;
+        var dx = +(dt * (speed/maxSpeed)).toFixed(4) ;
+        for ( i = 1; i <= rozdil; i++) {
+          index =  ( lastSegment +  i) % segmentsDalnice
+          /* pokud za 2.5sek(121 segmentu) bude brana, tak zacit reakcni dobu*/
+          if ( (index + segZa2sek)%segmentsDalnice == buffer[0] ) {
+            nejSegmBrany = segments[ (index+segZa2sek)%segmentsDalnice ] ;
+            if (!nejSegmBrany.brana.start) Game.timer.start(nejSegmBrany, zataci, pruh)
+          }
+          /* pokud zmacknuta klavesa N pruhu*/
+          if ( activeKey!==null) {
+            lastPressKey = activeKey;
+            if (nejSegmBrany) Game.timer.end(activeKey);
+          }
+          if (accelerate) { accelerate(); return };
+          /* pokud bude za 2.5 sek brana, tak pamatovat poslesni klavesu/pruh*/
+          if (segments[index].brana) {
+            lastPressKey = Game.timer.prejezd(playerX, lastPressKey);
+            nejSegmBrany = null;
+          }
+
+        };
+        if ( activeKey!==null) changeLanes(dx);
+        if (zataci) changeLanes(dx); 
+        lastSegment = baseSegment.index
+      };
+  }
+
+
+
+  //==============================================================================
+  //                     R E N D E R
+  //==============================================================================
+
+  function render(){
+    var nakreslit = {
+
+      polygon: function(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.lineTo(x3, y3);
+        ctx.lineTo(x4, y4);
+        ctx.closePath();
+        ctx.fill();
+      },
+      //---------------------------------------------------------------------------
+
+      segment: function(ctx, width, lanes, x1, y1, w1, x2, y2, w2, fog, color) {
+
+        var r1 = nakreslit.rumbleWidth(w1, lanes);
+        var r2 = nakreslit.rumbleWidth(w2, lanes);
+        var l1 = nakreslit.laneMarkerWidth(w1, lanes);
+        var l2 = nakreslit.laneMarkerWidth(w2, lanes);
+        var    lanew1, lanew2, lanex1, lanex2, lane;
+        
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = color.grass;
+        ctx.fillRect(0, y2, width, y1 - y2);
+
+        nakreslit.fog(ctx, 0, y1, width, y2-y1, fog);    
+        nakreslit.polygon(ctx,  x1-w1-r1, y1,   x1-w1, y1,    x2-w2, y2,    x2-w2-r2, y2,   color.rumble);  // leva bordura
+        nakreslit.polygon(ctx, x1+w1+r1, y1, x1+w1, y1, x2+w2, y2, x2+w2+r2, y2, color.rumble);    // prava bordura
+        nakreslit.polygon(ctx, x1-w1,    y1, x1+w1, y1, x2+w2, y2, x2-w2,    y2, color.road);
+        
+        // BILE PRUHY UPROSTRED DALNICE
+        if (color.lane) {
+          lanew1 = w1*2/lanes;
+          lanew2 = w2*2/lanes;
+          lanex1 = x1 - w1 + lanew1;
+          lanex2 = x2 - w2 + lanew2;
+          for(lane = 1 ; lane < lanes ; lanex1 += lanew1, lanex2 += lanew2, lane++)
+            nakreslit.polygon(ctx, lanex1 - l1/2, y1, lanex1 + l1/2, y1, lanex2 + l2/2, y2, lanex2 - l2/2, y2, color.lane);
+        };
+       nakreslit.fog(ctx, 0, y1, width, (y2-y1), fog , '#000');   
+        
+      },
+      //---------------------------------------------------------------------------
+
+      branu : function(segment, opacity){
+          var img, brana = segment.brana;
+          if (brana){
+            img = Game.loadImages.brana
+          };
+          var scale = segment.p1.screen.scale * roadWidth;
+          var spriteX     = segment.p1.screen.x; 
+          var spriteY     = segment.p1.screen.y;
+
+          var destW  = scale * width ;
+          var destH = img.height *  (1/img.width) * destW ; 
+          var destX = spriteX - ( destW /2 ); 
+          var destY = spriteY - ( destH ); 
+          var clipH = segment.clip ? Math.max(0, destY+destH-segment.clip) : 0;
+
+          if (clipH >= destH) return;
+
+          nakreslit.object(img, destX, destY, destW, destH - clipH, opacity, segment.clip); 
+         
+          if (brana) {
+            if (brana.gate == undefined) return;
+            destW  = (scale * width/lanes);
+            nakreslit.spravnyPruh(img, destX, destY ,  destW, destH - clipH, opacity, brana );
+          };
+      },
+      //---------------------------------------------------------------------------
+      spritesObjects : function(segment, opacity){
+          var sprites;
+          if (!(sprites = segment.sprites)) return
+          var scale = segment.p1.screen.scale * roadWidth;
+          var spriteX     = segment.p1.screen.x; 
+          var spriteY     = segment.p1.screen.y;
+          var destW  = scale * width ;
+          for (var i = 0; i < sprites.length; i++) {
+            var img = Game.loadImages[sprites[i].source]
+            var destH = img.height *  (1/img.width) * destW ; 
+            var destX = spriteX - ( destW /2 )  + (destW*sprites[i].offset||0); 
+            var destY = spriteY - ( destH); 
+            var clipH = segment.clip ? Math.max(0, destY+destH-segment.clip) : 0;
+            if (clipH >= destH) continue;
+            nakreslit.object(img, destX, destY, destW, destH - clipH, opacity, segment.clip); 
+          }
+      },
+      //---------------------------------------------------------------------------
+
+       object : function(img, destX, destY ,  destW, destH, opacity, clipY ){
+          opacity = Math.min(1,opacity*1.2);
+          ctx.globalAlpha = opacity;
+          ctx.drawImage(img, destX, destY , destW, destH);
+      },
+      //---------------------------------------------------------------------------
+
+      spravnyPruh : function(img, destX, destY ,  destW, destH, opacity, brana ){
+          // var simafor = brana.start? Game.loadImages.green : Game.loadImages.red,
+          // gate =  brana.gate;
+          // ctx.globalAlpha = opacity*.5;
+          // for (var i = 0; i < lanes; i++) ctx.drawImage(Game.loadImages.red, destX +  (destW*i), destY , destW, destH/3);        
+
+          // destX = destX +  (destW*brana.gate)
+          ctx.fillStyle ='#20ff00'
+          ctx.fillRect(destX +  (destW*brana.gate), destY , destW, destH/2.5);   
+          // ctx.drawImage(simafor, destX, destY , destW, destH/2.25);
+
+          ctx.globalAlpha = 1
+      },
+      //---------------------------------------------------------------------------
+
+      fog: function(ctx, x, y, width, height, fog, color) {
+        if (fog < 1) {
+          height = color? height : height;
+          ctx.globalAlpha = color? (1-fog)*.35 : (1-fog);
+          ctx.fillStyle = color || COLORS.FOG;
+          ctx.fillRect(x, y, width, height);
+          ctx.globalAlpha = 1;
+        }
+      },
+      //---------------------------------------------------------------------------
+
+      rumbleWidth:     function(projectedRoadWidth, lanes) { return projectedRoadWidth/Math.max(6,  2*lanes); },
+      laneMarkerWidth: function(projectedRoadWidth, lanes) { return projectedRoadWidth/Math.max(32, 8*lanes); },
+      //---------------------------------------------------------------------------
+
+      vypocetProjekce: function (p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
+            p.screen.scale = cameraDepth / ( p.camera.z=p.world.z-cameraZ );
+            var scaleWidth = p.screen.scale * width /2 ;
+            p.screen.x     = Math.round((width/2)  - (scaleWidth  * cameraX    ));
+            p.screen.y     = Math.round(  ((height/2) - (p.screen.scale * height * (p.world.y-cameraY)))/2 );
+            p.screen.w     = Math.round(             (scaleWidth  * roadWidth  ));
+      },
+
+    }
+
+    //=======================  R E T U R N     R E N D E R  ===============================
+
+    return function render () {
+              
+        var baseSegment   = findSegment(position);
+        var basePercent   = Util.percentRemaining(position, segmentLength);
+        var playerY       = Util.interpolate(baseSegment.p1.world.y, baseSegment.p2.world.y, basePercent);
+        var maxy          = height;
+        var baseIndex     = baseSegment.index;
+
+        ctx.clearRect(0, 0, width, height);
+        //-----------------------------------------------------------------------------------------------
+        //       V Y P O C T Y
+
+      /* render background*/
+      /* // ctx.drawImage(Game.loadImages.sky, 400 + skyOffset*400 ,0, imgW , imgH// ); //background    // , 0  ,0, width, height /1.9);
+        var sky = document.getElementById('sky')
+        skyOffset = skyOffset +  (baseSegment.curve);
+        sky.style.transform = "translateX("+ (-skyOffset/10).toFixed(2) +"%)"
+      */
+        var i, n, segment, opacity;
+        var idx, x = 0,  dxx = - (baseSegment.curve * basePercent);
+
+        /*render road */
+        for(n = 0 ; n < drawDistance ; n++) {
+          segment        = segments[(baseIndex + n) % segments.length];
+          segment.looped = segment.index < baseIndex;
+          segment.fog    = Util.exponentialFog(n/drawDistance, fogDensity);
+          segment.clip   = maxy;
+
+
+      // vypocetProjekce: function (p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
+      //       p.screen.scale = cameraDepth / ( p.camera.z=p.world.z-cameraZ );
+      //       var scaleWidth = p.screen.scale * width /2 ;
+      //       p.screen.x     = Math.round((width/2)  - (scaleWidth  * cameraX    ));
+      //       p.screen.y     = Math.round(  ((height/2) - (p.screen.scale * height * (p.world.y-cameraY)))/2 );
+      //       p.screen.w     = Math.round(             (scaleWidth  * roadWidth  ));
+      // },
+
+
+
+          function kreslit (segment, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
+            // if (index == 0) return
+            var index = segment.index
+            var p1 = segment.p1
+            var p2 = segment.p2
+
+            p1.screen.scale = cameraDepth / ( p1.camera.z=p1.world.z-cameraZ );
+            var scaleWidth = p1.screen.scale * width /2 ;
+            p1.screen.x     = Math.round((width/2)  - (scaleWidth  * cameraX.p1    ));
+            p2.screen.x     = Math.round((width/2)  - (scaleWidth  * cameraX.p2    ));
+            p1.screen.y     = Math.round(  ((height) - (p1.screen.scale * height * (p1.world.y-cameraY)))/2 );
+            p1.screen.w     = Math.round(             (scaleWidth  * roadWidth  ));            
+
+
+            if (index == 0 || index == segments.length-1) {
+              console.info('index=', index)
+              p2.screen.scale = cameraDepth / ( p2.camera.z=p2.world.z-cameraZ );
+              var scaleWidth = p2.screen.scale * width /2 ;
+              p2.screen.x     = Math.round((width/2)  - (scaleWidth  * cameraX.p2    ));
+              p2.screen.y     = Math.round(  ((height) - (p2.screen.scale * height * (p2.world.y-cameraY)))/2 );
+              p2.screen.w     = Math.round(             (scaleWidth  * roadWidth  ));   
+
+            } else {
+              var lastP2 = segments[index-1].p2
+              lastP2.screen.y =   p1.screen.y
+              lastP2.screen.w =   p1.screen.w            
+              lastP2.screen.scale = p1.screen.scale 
+              lastP2.camera.z = p1.camera.z 
+            }
+
+            /*
+            la
+            var indexP2 = index == 0? segmentsDalnice-1: index-1;
+            var p = segments[index].p1,
+            p1 = segments[index].p1,
+            p2 = segments[indexP2].p2
+
+            p1.screen.scale = p2.screen.scale = cameraDepth / ( p1.camera.z = p2.camera.z = p1.world.z-cameraZ );
+            var scaleWidth = p1.screen.scale * width /2 ;
+            p1.screen.x  = Math.round((width/2)  - (scaleWidth  * cameraX.p1    ));//p1
+            p2.screen.x  = Math.round((width/2)  - (scaleWidth  * cameraX.p2    ));//p2
+            p1.screen.y = p2.screen.y     = Math.round(  ((height/2) - (p.screen.scale * height * (p.world.y-cameraY)))/2 );
+            p1.screen.w = p2.screen.w     = Math.round(             (scaleWidth  * roadWidth  ));*/
+          }
+
+
+
+          var cameraX =  {
+            p1:(playerX * roadWidth) - x , 
+            p2:(playerX * roadWidth) - x - dxx
+          }
+
+          
+          kreslit(segment, cameraX, playerY + cameraHeight,    position - (segment.looped ? trackLength : 0),    cameraDepth ,     width,     height,    roadWidth);
+
+          // nakreslit.vypocetProjekce(segment.p1,   (playerX * roadWidth) - x,         playerY + cameraHeight,    position - (segment.looped ? trackLength : 0),    cameraDepth ,     width,     height,    roadWidth);
+
+          // nakreslit.vypocetProjekce(segment.p2,   (playerX * roadWidth) - x - dxx,   playerY + cameraHeight,    position - (segment.looped ? trackLength : 0),     cameraDepth,     width,     height,    roadWidth);
+
+
+          x  = x + dxx;
+          dxx = dxx + segment.curve;  
+          if (segment.p1.camera.z <= cameraDepth) continue;
+
+          if  ((segment.p2.screen.y >= segment.p1.screen.y) ||
+              (segment.p2.screen.y >= maxy))  continue;
+          //-----------------------------------------------------------------------------------------------
+          //  K R E S L E N I
+
+          nakreslit.segment(ctx, width, lanes,
+                         segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w,
+                         segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w,
+                         segment.fog, segment.color);
+          maxy = segment.p1.screen.y;
+        };//for
+        //-----------------------------------------------------------------------------------------------
+
+        /* render pro objekty na dalnice, a pro brany. 
+           Promena v cyklu musi klesat, aby blizke objekty, prekryli dalni  */
+        var vychod;
+        if (withObjects) {  
+          for (i = bufferObjects.length - 1; i >= 0; i--) {
+            idx = bufferObjects[i];
+            vychod = baseIndex + drawDistance < idx + (baseIndex < idx?0:segmentsDalnice);
+            if (vychod) continue
+            opacity = (baseIndex <= idx)
+                ? baseIndex - idx
+                : baseIndex - ( idx + segmentsDalnice);
+                opacity = 1 - Math.abs(opacity /1000);
+                nakreslit.spritesObjects(segments[idx],opacity );
+          };
+        };
+        //-----------------------------------------------------------------------------------------------
+        for (i = buffer.length - 1; i >= 0; i--) {
+          idx = buffer[i]
+          opacity = (baseIndex <= idx)
+              ? baseIndex - idx
+              : baseIndex - ( idx + segmentsDalnice);
+              opacity = 1 - Math.abs(opacity /1000);
+              nakreslit.branu(segments[idx], opacity);
+        };
+        //-----------------------------------------------------------------------------------------------
+        /*  Kresleni na konecnou obrazovku */      
+        ctxOutput.clearRect(0,0,width, maxy);
+        ctxOutput.drawImage(ctx.canvas,0,0);
+      } ; // KONEC RENDER
+
+  };
+
+//==============================================================================
+//                 F I N D   S e g m e n t
+//==============================================================================
+  /* je potrebni v update a v renderu , pro to je samotny */
+  function findSegment(z) {
+    return  segments[(z/segmentLength>>0) /*% segments.length*/];
+  };
+
+
+//=========================================================================
+//              R E S E T    R O A D
+//=========================================================================
+
+  var resetRoad = function(){
+    addRoad(25,    50, 25   , -20   ,  random(15)/5); 
+    addRoad(100,  100, 150  , -125  ,  random(-15)/15); 
+    addRoad(20,    50, 30   , 20    ,  random(15)/15);
+    addRoad(175,  100, 175  , 95   ,  random(15)/15); 
+    addRoad(75,   100, 75   , 50    ,  random(-15)/15); 
+    addRoad(200,  100, 100  , -60   ,  random(15)/15); 
+    addRoad(200,  100, 200  , 40    ,  random(-15)/15); 
+    addRoad(10,  10, 10  , 0    ,  0); 
+
+    segmentsDalnice = segments.length
+    trackLength = segmentsDalnice * segmentLength;
+    //------------------------------------------------------------------------
+    function addRoad (enter, hold, leave, y, curve ) {
+      var startY   = lastY();
+      var endY     = startY + (Util.toInt(y, 0) * segmentLength);
+      var n, total = enter + hold + leave;
+      for(n = 0 ; n < enter ; n++) { 
+        addSegment( Util.easeInOut(startY, endY, n/total), 
+        Util.easeIn(0, curve, n/total)); 
+      };
+      for(n = 0 ; n < hold  ; n++) {
+        addSegment(Util.easeInOut(startY, endY, (enter+n)/total) ,
+        curve);
+      };
+      for(n = 0 ; n < leave ; n++) {
+        addSegment( Util.easeInOut(startY, endY, (enter+hold+n)/total),
+        Util.easeInOut(curve, 0, n/leave)   ); 
+      };
+    };
+    //------------------------------------------------------------------------  -    
+    function addSegment (y, curve) {
+      var n  = segments.length;
+      segments.push({
+         index: n,
+         p1: { world: { y: lastY(),   z:  n   *segmentLength,   }, camera: {}, screen: {} },
+         p2: { world: { y: y,         z: (n+1)*segmentLength,   }, camera: {}, screen: {} },
+         curve : curve,
+         color: ((n/rumbleLength)>>0) % 2 ? COLORS.DARK : COLORS.LIGHT
+      });
+      if (withObjects) segments[segments.length-1].sprites = [];
+      
+    };
+    //------------------------------------------------------------------------
+    function lastY() {  return (segments.length == 0) ? 0 : segments[segments.length-1].p2.world.y; };
+    function random(x){ return (Math.random()*x)>>0;}
+    //------------------------------------------------------------------------        
+  };
+
+  //------------------------------------------------------------------------        
+  //              R E S E T    B I L L B O A R D 
+  //------------------------------------------------------------------------        
+  var resetBillBoard =  function(){
+    // pridejSpritesObjects(300, [{source: 'reklama', offset:0.5}])
+    pridejSpritesObjects(450, [{source: 'reklama', offset:-3}])
+    pridejSpritesObjects(700, [{source: 'reklama', offset:-2}])
+    pridejSpritesObjects(1300, [{source: 'reklama', offset:-1}])
+    pridejSpritesObjects(1880, [{source:'reklama', offset:-2}])
+
+    pridejSpritesObjects(230, [{source:'reklama', offset:0}])
+
+
+
+    pridejSpritesObjects(470, [{source: 'reklama2', offset:-0.5}])
+    // pridejSpritesObjects(470, [{source: 'reklama2', offset:0}])
+    pridejSpritesObjects(850, [{source: 'reklama2', offset:3}])
+    pridejSpritesObjects(1200, [{source: 'reklama2', offset:2}])
+    pridejSpritesObjects(1500, [{source: 'reklama2', offset:1}])
+    pridejSpritesObjects(1750, [{source: 'reklama2', offset:2}])
+
+    function pridejSpritesObjects (segIndex, objects){
+      if ( objects  instanceof Array ) {
+        for (var i = 0; i < objects.length; i++) pridejSpritesObjects(segIndex,objects[i]);
+        return;
+      };
+      segments[segIndex].sprites.push(objects); 
+      bufferObjects.push(segIndex)
+    };
+  }
+
+
+//==============================================================================
+//                      K O N E C    H R Y
+//==============================================================================
+
+  function konecHry() {
+    for (var i = 0; i < buffer.length; i++) {
+      segments[buffer[i]].brana = null;
+    };
+    buffer = [];
+    document.getElementById('mobil-wrap').className = ""
+      
+    var scoreArr = Game.timer.score.copy(), inc = 0;
+    var scoreWrap = document.getElementById('score-wrap');
+    var style = scoreWrap.style
+    style.display = "block";
+      
+    var interval  = setInterval(function(){
+        speed = speed+50;
+        document.getElementById('score-online').style.opacity = 1 - inc*.02
+        cameraHeight = Util.easeIn(1,inc*10 ,2)+600;
+        style.opacity = inc*0.02;
+        cameraDepth = 1.00 - inc*0.01;
+        if (inc != 50)  inc++
+        else { 
+          clearInterval(interval);
+          speed = 500;
+          showScore();
+        }
+    },25);
+
+    function showScore(){
+      var insertRow = function(sms,sum,projel,cas){
+        r = table.insertRow();
+        for (var i = 0; i < arguments.length; i++) {
+          r.insertCell().innerHTML = arguments[i]
+        };
+      };
+      var item, type;
+      var score = {
+        sSMS  : { projel: 0, time: 0, pocet:0 },
+        bezSMS: { projel: 0, time: 0, pocet:0 },
+      };
+      for (var i = 0; i < scoreArr.length; i++) {
+        item =  scoreArr[i];
+        type = item.smskuje? "sSMS" : "bezSMS";
+        if (item.projel) score[type].projel++;
+        if (item.time) score[type].time += item.time;
+        score[type].pocet++;
+      };
+      var table = document.createElement('table'), row, r;
+      insertRow("", "Pocet", "Projel", "Cas")
+      for (var SMS in score) {
+        r = score[SMS];
+        insertRow(SMS, r.pocet, r.projel, r.time.toFixed(2))
+      };
+      
+      scoreWrap.innerHTML = "<div></div>";
+      scoreWrap.children[0].appendChild(table);
+    };
+
+  };
+
+
+//==============================================================================
+//                     F U L L   S C R E E N
+//==============================================================================
+
+  (function(){
+    var launchFullScreen = function() {
+      if      (racer.requestFullScreen) racer.requestFullScreen()
+      else if (racer.msRequestFullscreen) racer.msRequestFullscreen()
+      else if (racer.mozRequestFullScreen) racer.mozRequestFullScreen()
+      else if (racer.webkitRequestFullScreen) racer.webkitRequestFullScreen();
+    };
+    var cancelFullscreen = function() {
+      if      (document.cancelFullScreen) document.cancelFullScreen()
+      else if (document.msExitFullscreen) document.msExitFullscreen()
+      else if (document.mozCancelFullScreen) document.mozCancelFullScreen()
+      else if (document.webkitCancelFullScreen) document.webkitCancelFullScreen();
+    };
+    var toggleFullScreen =  function(e){
+      var fullscreenElement = document.IsFullScreen||document.mozFullScreen||document.webkitIsFullScreen||document.msFullscreenElement;
+      if (fullscreenElement) cancelFullscreen()
+      else  launchFullScreen();
+    };
+     
+    var elemFullScr = document.getElementById('full-scr')
+    elemFullScr.onclick = toggleFullScreen;
+
+    /* nahrada Fullscreen pro IE10 a starsi */
+    if (top.execScript) {
+      var wrap = element('main-wrapper');
+     elemFullScr.onclick = function(){
+        wrap.classes.toggle('fscr_ie10');
+     };
+    };
+  })();
+
+
+
+
+
+
+//------------------------------------------------------------------------------------
+//      T E S T Y  
+
+  var testy= function (obj) {
+
+    var smsstatus = document.getElementById('smsstatus');
+    var devmobil= document.getElementById('devmobil').onclick = function(){ Game.mobil.toggle()}
+    var devstop= document.getElementById('devstop').onclick = function(){ if (speed){speed=0} else speed=10000 }
+    var devnewsms= document.getElementById('devnewsms').onclick=function(){Game.mobil.newSMS()}
+    document.getElementById('devkonecHry').onclick= konecHry
+    var scoreOnline = element('score-online')
+    document.getElementById('devscore').onclick = function(){ scoreOnline.classes.toggle('h') };
+
+    return function testy(obj){
+    
+      for (name in obj){
+//         if (name== "smsstatus") 
+        switch (name) {
+          case "showScoreOnline" : showScoreOnline(obj[name]); break;
+          case "smsstatus" : eval(obj[name]); break;
+        }
+      }
+      function showScoreOnline(score){
+        var scoreOnline = document.getElementById('score-online');
+        var div =document.createElement('div')
+        div.innerHTML= '<span>'+ score.time + '</span>'  +
+        '<span>'+ score.projel +'</span>'  +
+        '<span>'+ score.smskuje +'</span>'  +
+        '<span>'+ score.maxReactTime +'</span>';
+        scoreOnline.insertBefore(div, scoreOnline.children[1])
+      }
+    }
+  }();
+
+
+} // init
+  </script>
+</body> 
+
